@@ -1,0 +1,171 @@
+3.3.3. Primer u programskom jeziku C (wiringPi biblioteka)
+Program blink.c u C-u koji radi treptanje na DVK512 ekspanzionoj kartici sa
+sve 4 diode koji koristi wiringPi biblioteku bi bio:
+#include <wiringPi.h>
+// na DVK512 4 LED su povezane na GPIO.25-GPIO.28
+// sto su pinovi 25,26,27,28 (wiringPi oznake)
+// konkretne veze pinova uvek mozete
+// dobiti pozivom: gpio readall
+char LED[]={25,26,27,28};
+char i;
+int main(){
+wiringPiSetup();
+for(i=0;i<4;i++)
+pinMode (LED[i],OUTPUT);
+while(1)
+30
+{
+ for(i=0;i<4;i++) {
+digitalWrite (LED[i], 1);
+delay (200);
+digitalWrite (LED[i], 0);
+delay (200);
+ }
+}
+}
+Program kompajlirati sa:
+gcc blink.c -o blink -lwiringPi -lwiringPiDev
+a pokrenuti sa: sudo ./blink
+3.3.4. Primer u programskom jeziku C (BCM2835 biblioteka)
+Naredni program blink.c će realizovati treptanje LED3 na DVK512
+ekspanzionoj pločici na svakih pola sekunde.
+31
+// treptanje led svakih 0.5 s
+#include <bcm2835.h>
+// LED je na DVK512 pločici na GPIO.28 (LED3)
+// što je pin 20 na BCM-u
+#define PIN 20
+int main(int argc, char **argv)
+{
+ if (!bcm2835_init())
+ return 1;
+ // Setuj pin kao izlazni
+ bcm2835_gpio_fsel(PIN, BCM2835_GPIO_FSEL_OUTP);
+ while (1)
+ {
+ // ukljuci
+ bcm2835_gpio_write(PIN, HIGH);
+ bcm2835_delay(500);
+
+ // iskljuci
+ bcm2835_gpio_write(PIN, LOW);
+ bcm2835_delay(500);
+ }
+ bcm2835_close();
+ return 0;
+}
+Program kompajlirati sa:
+gcc -o blink blink.c -l 
+
+--------------------------------------------------------------------------------------------------------------
+
+
+
+4.1.3. Kontrola dimera tasterom
+U narednom primeru je realizovan PWM LED dimer koji menja intenzitet
+osvetljaja u 5 nivoa na pritisak tastera. Pored toga, u ovom primeru ćemo se podsetiti i
+softverskog diferenciranja (primena radi jednostruke detekcije promene stanja tastera)
+što je rađeno u ranijim predmetima.
+37
+// NA DVK512 ploči se koristi KEY0 i LED3,
+// a LED0 svetli dok taster nije pritisnut
+#include <wiringPi.h>
+#include <softPwm.h>
+#include <stdio.h>
+int main() {
+int i=0, taster_pritisnut=0;
+int r_value;
+if (wiringPiSetup() == -1)
+exit(1);
+pinMode(21, INPUT);
+pinMode(25, OUTPUT);
+digitalWrite(25, HIGH);
+if (softPwmCreate(28, 0, 100) != 0)
+exit (2);
+i = 0;
+taster_pritisnut = 0;
+while (1) {
+r_value = digitalRead(21); // procitaj KEY0
+digitalWrite(25, r_value);
+//cekamo na pritisak tastera
+if (!r_value && !taster_pritisnut) {
+taster_pritisnut = 1;
+i += 20;
+if (i > 100) i = 0;
+printf("i = %d\n", i);
+fflush(stdout);
+softPwmWrite(28, i);
+}
+// cekamo da se taster otpusti
+if (r_value) taster_pritisnut = 0;
+}
+return 0;
+}
+Funkcije digitalRead i digitalWrite služe za čitanje i ispis na
+navedenom pinu.
+4.1.4. Realizacija dimera upotrebom BCM2835 biblioteke
+U narednom primeru će biti realizovan dimer upotrebom hardverskog PWM i
+BCM2835 biblioteke.
+// PWM kontrola GPIO pinova upotrebom BCM2835 biblioteke
+// i hardverskog PWM-a za dimovani blink LED
+// gcc -o pwm4 pwm4.c -l bcm2835
+// sudo ./pwm4
+#include <bcm2835.h>
+#include <stdio.h>
+// PWM izlaz je na pin 12 na RPi2 GPIO prikljucku
+// sto je BCM pin 18 u ALT fun broj 5
+// ovo je jedini PWM pin slobodan na RPi GPIO
+#define PIN 18
+// koristi PWM kanal 0
+#define PWM_CHANNEL 0
+// max range PWM signala
+#define RANGE 1024
+38
+Detalje oko podešavanja PWM koristeći BCM2835 biblioteku moguće je
+pogledati u PWM delu opšte dokumentacije ove biblioteke na [9]. Rezultat rada
+programa je moguće vizuelno ispratiti povezivanjem LED ili pregledati dobijen PWM
+signal povezivanjem sa osciloskopom.
+39
+int main(int argc, char **argv)
+{
+ if (!bcm2835_init())
+ return 1;
+ // Setuj izlazni pin u Alt Fun 5,
+ // da bi PWM kanal 0 bio izlaz
+ bcm2835_gpio_fsel(PIN, BCM2835_GPIO_FSEL_ALT5);
+
+ // Clock divider = 2048
+ // Sa divider = 2048 i RANGE = 1024,
+ // u MARKSPACE modu,
+ // frekvencija ponavljanja impulsa
+ // ce biti 19.2MHz/2048/1024= oko 18Hz
+
+bcm2835_pwm_set_clock(BCM2835_PWM_CLOCK_DIVIDER_2048);
+ bcm2835_pwm_set_mode(PWM_CHANNEL, 1, 1);
+ bcm2835_pwm_set_range(PWM_CHANNEL, RANGE);
+
+ // realizacija dimera promenom PWM odnosa u
+ // opsegu 1/RANGE i (RANGE-1)/RANGE
+ int direction = 1;
+ int data = 1;
+ while (1)
+ {
+ if (data == 1)
+ direction = 1;
+ else if (data == RANGE-1)
+ direction = -1;
+ data += direction;
+ bcm2835_pwm_set_data(PWM_CHANNEL, data);
+ bcm2835_delay(10);
+ }
+ bcm2835_close();
+ return 0;
+}
+4.2. Zadaci
+4.2.1. Zadatak 1
+Koristeći osciloskop pogledati dobijene PWM signale u prethodnim primerima.
+4.2.2. Zadatak 2
+Koristeći tastere KEY0 i KEY1 na DVK512 ekspanzionoj ploči napisati program
+u C-u koji radi dimovanje LED3 tako što se jedan taster koristi za povećanje intenziteta,
+a drugi za smanjenje i to za 20% (dakle imamo 5 nivoa osvetljaja). Program testirati
+povezivanjem sa RPi koji ima na sebi DVK512.
