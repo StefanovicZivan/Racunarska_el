@@ -1,0 +1,4 @@
+<RCC>
+    <qresource prefix="/slike"/>
+    <qresource prefix="/"/>
+</RCC>

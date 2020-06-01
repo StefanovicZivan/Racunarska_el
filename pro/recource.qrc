@@ -1,0 +1,15 @@
+<RCC>
+    <qresource prefix="/slike">
+        <file>image6.jpg</file>
+        <file>image2.jpg</file>
+        <file>image3.jpg</file>
+        <file>image13.png</file>
+        <file>black.png</file>
+        <file>blue.png</file>
+        <file>green.png</file>
+        <file>pink.png</file>
+        <file>red.png</file>
+        <file>white.png</file>
+        <file>yellow.png</file>
+    </qresource>
+</RCC>
